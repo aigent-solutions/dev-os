@@ -52,7 +52,9 @@ jobs:
         with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
       - run: npm ci
       - uses: supabase/setup-cli@v1
-        with: { version: latest }
+        # Pinned to the CLI that generated src/types/database.types.ts: `gen types` output changes between
+        # releases. To upgrade, bump all three pins and re-run npm run db:types in the same commit.
+        with: { version: 2.90.0 }
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
@@ -83,7 +85,9 @@ jobs:
         with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
       - run: npm ci
       - uses: supabase/setup-cli@v1
-        with: { version: latest }
+        # Pinned to the CLI that generated src/types/database.types.ts: `gen types` output changes between
+        # releases. To upgrade, bump all three pins and re-run npm run db:types in the same commit.
+        with: { version: 2.90.0 }
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
@@ -166,7 +170,9 @@ jobs:
         with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
       - run: npm ci
       - uses: supabase/setup-cli@v1
-        with: { version: latest }
+        # Pinned to the CLI that generated src/types/database.types.ts: `gen types` output changes between
+        # releases. To upgrade, bump all three pins and re-run npm run db:types in the same commit.
+        with: { version: 2.90.0 }
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
