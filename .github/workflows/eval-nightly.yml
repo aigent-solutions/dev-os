@@ -38,7 +38,7 @@ jobs:
           path: contractiq/evals/datasets
       - if: env.HAS_EVAL_DATA == 'true'
         uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
+        with: { node-version-file: contractiq/.nvmrc, cache: npm, cache-dependency-path: contractiq/package-lock.json }
       - if: env.HAS_EVAL_DATA == 'true'
         run: npm ci
       - if: env.HAS_EVAL_DATA == 'true'
