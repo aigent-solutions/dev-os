@@ -1,0 +1,30 @@
+// Shared constants — exactly docs/specs/README.md §3.5.
+export const STORAGE_BUCKET = 'contracts';
+export const MAX_FILE_BYTES = 10_485_760;
+export const MAX_PAGES = 20;
+export const MIN_WORDS = 100;
+export const MAX_CONTRACT_TOKENS = 15_000;
+export const MAX_CUSTOM_TERMS = 5;
+export const CUSTOM_TERM_MIN = 2;
+export const CUSTOM_TERM_MAX = 60;
+export const CUSTOM_TERM_PATTERN = /^[\p{L}\p{N} ,.'&()/-]+$/u;
+export const MAX_TERM_VALUE_CHARS = 2_000;
+export const MAX_CHAT_MESSAGE_CHARS = 2_000;
+export const MAX_CHAT_HISTORY = 200;
+export const MAX_FEEDBACK_COMMENT = 1_000;
+export const SIGNED_URL_TTL_SECONDS = 3_600;
+export const PROCESSING_TIMEOUT_MS = 120_000;
+export const MAX_PROCESSING_ATTEMPTS = 5;
+export const STATUS_POLL_INTERVAL_MS = 2_000;
+export const DISPATCH_TIMEOUT_MS = 3_000;
+export const OPENAI_TIMEOUT_MS = 20_000;
+export const CHAT_STREAM_TIMEOUT_MS = 24_000; // total stream; < Netlify's 26 s (README §6 row 1)
+export const CONFIDENCE_HIGH = 80; // ≥ 80 green
+export const CONFIDENCE_LOW = 50; // < 50 red + ⚠️ ; 50–79 amber
+export const UNVERIFIED_CONFIDENCE_CAP = 49;
+export const PDF_RETENTION_DAYS = 90;
+export const PENDING_UPLOAD_TTL_HOURS = 24;
+export const LEGAL_DISCLAIMER =
+  'This is an AI-assisted review tool, not legal advice. Always verify critical terms with a qualified lawyer.';
+export const LOW_CONFIDENCE_TOOLTIP = 'Low confidence — we recommend verifying this in the document directly.';
+export const NOT_FOUND_ANSWER = 'I cannot find this in the document.';

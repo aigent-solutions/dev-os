@@ -1,0 +1,82 @@
+# Nightly full AI evals on main (15-evals.md §6.11). Report only: records fresh responses for the full set
+# (+ custom terms) and chat, runs calibration, pushes the refreshed recordings to the data repo on a
+# recordings/<date> branch, and opens an issue if the beta gates fail.
+name: Evals — nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: contractiq
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  OPENAI_PRICE_INPUT_PER_MTOK: '2.5'
+  OPENAI_PRICE_OUTPUT_PER_MTOK: '10'
+  HAS_EVAL_DATA: ${{ secrets.EVAL_DATA_WRITE_KEY != '' }}
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, issues: write }
+    steps:
+      - if: env.HAS_EVAL_DATA != 'true'
+        working-directory: .
+        run: echo "::warning::Skipping evals — EVAL_DATA_WRITE_KEY is not set (see contractiq/evals/README.md)"
+      - if: env.HAS_EVAL_DATA == 'true'
+        uses: actions/checkout@v4
+        with: { ref: main }
+      - if: env.HAS_EVAL_DATA == 'true'
+        name: Check out the eval dataset (write key, to push recordings)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/contractiq-eval-data
+          ssh-key: ${{ secrets.EVAL_DATA_WRITE_KEY }}
+          path: contractiq/evals/datasets
+      - if: env.HAS_EVAL_DATA == 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
+      - if: env.HAS_EVAL_DATA == 'true'
+        run: npm ci
+      - if: env.HAS_EVAL_DATA == 'true'
+        id: extraction
+        continue-on-error: true
+        name: Extraction — record, full set + custom terms
+        run: npm run eval:extraction -- --record --subset full --custom --stage beta --gate --out evals/reports/extraction
+        env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }
+      - if: env.HAS_EVAL_DATA == 'true'
+        id: chat
+        continue-on-error: true
+        name: Chat groundedness — record
+        run: npm run eval:chat -- --record --gate --expert-template --out evals/reports/chat
+        env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }
+      - if: env.HAS_EVAL_DATA == 'true' && steps.extraction.outcome != 'skipped'
+        id: calibration
+        continue-on-error: true
+        name: Calibration (report)
+        run: npm run eval:calibration -- --from evals/reports/extraction --out evals/reports/calibration
+      - if: env.HAS_EVAL_DATA == 'true'
+        name: Push refreshed recordings to contractiq-eval-data
+        working-directory: contractiq/evals/datasets
+        run: |
+          git config user.name "contractiq-evals"
+          git config user.email "evals@users.noreply.github.com"
+          git add recordings
+          if git diff --cached --quiet; then echo "No new recordings"; exit 0; fi
+          branch="recordings/$(date -u +%Y-%m-%d)"
+          git checkout -b "$branch"
+          git commit -m "Refresh eval recordings ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})"
+          git push origin "$branch"
+      - if: always() && env.HAS_EVAL_DATA == 'true'
+        uses: actions/upload-artifact@v4
+        with: { name: eval-reports-nightly, path: contractiq/evals/reports/, retention-days: 30 }
+      - if: env.HAS_EVAL_DATA == 'true' && (steps.extraction.outcome == 'failure' || steps.chat.outcome == 'failure')
+        name: Open an issue (beta gates failed)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          { echo "Nightly evals failed a beta gate on \`${GITHUB_SHA::7}\`. Reports: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"; echo
+            cat evals/reports/extraction/summary.md evals/reports/chat/summary.md 2>/dev/null; } > issue.md
+          gh issue create --title "Nightly evals: beta gates failed ($(date -u +%Y-%m-%d))" --body-file issue.md

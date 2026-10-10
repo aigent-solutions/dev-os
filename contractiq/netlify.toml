@@ -1,0 +1,26 @@
+# docs/specs/00-foundation.md §6.14
+# Sync processing (PROCESSING_MODE=sync or the automatic fallback) and long chat answers need the
+# site's synchronous function timeout raised from 10 s to the 26 s maximum in the Netlify UI.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # pdf.js loads its worker module at runtime; keep it as a real node_module, not bundled.
+  external_node_modules = ["pdfjs-dist"]
+
+[dev]
+  command = "npm run dev:next"
+  targetPort = 3000
+  port = 8888
+  framework = "#custom"

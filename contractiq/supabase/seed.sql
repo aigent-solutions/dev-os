@@ -1,0 +1,2 @@
+-- Seed data (local/CI). Intentionally empty of users: test users are created through the
+-- admin API by tests/setup/seed-users.ts (00-foundation.md §4.4).

@@ -1,0 +1,44 @@
+# Release gate (15-evals.md §6.11): the full live suite (+ custom terms) and chat with the stage gate.
+# EVAL_GATE_STAGE (repository variable) is `beta` until public launch, then `launch`.
+# NOTE: there is no deploy job yet (Netlify deploys from Git; Stage 6). When one is added, give it
+# `needs: eval` so a failed gate blocks the deploy.
+name: Evals — release
+
+on:
+  push:
+    tags: ['v*']
+
+defaults:
+  run:
+    working-directory: contractiq
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  OPENAI_PRICE_INPUT_PER_MTOK: '2.5'
+  OPENAI_PRICE_OUTPUT_PER_MTOK: '10'
+  EVAL_STAGE: ${{ vars.EVAL_GATE_STAGE || 'beta' }}
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the eval dataset (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/contractiq-eval-data
+          ssh-key: ${{ secrets.EVAL_DATA_DEPLOY_KEY }}
+          path: contractiq/evals/datasets
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
+      - run: npm ci
+      - name: Extraction — live, full set + custom terms
+        run: npm run eval:extraction -- --live --subset full --custom --stage "$EVAL_STAGE" --gate --out evals/reports/extraction
+        env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }
+      - name: Chat groundedness — live
+        run: npm run eval:chat -- --live --stage "$EVAL_STAGE" --gate --out evals/reports/chat
+        env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: eval-reports-release, path: contractiq/evals/reports/, retention-days: 30 }

@@ -1,0 +1,7 @@
+{
+  "name": "eslint-plugin-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ContractIQ project ESLint rules (00-foundation.md §6.12)",
+  "main": "index.js"
+}

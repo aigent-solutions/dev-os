@@ -1,0 +1,159 @@
+/*
+ * ContractIQ design tokens.
+ * Primitives and the design-system semantic aliases are copied verbatim from
+ * docs/design.md ("CSS Custom Properties Setup"). The app semantic tokens below
+ * them come from docs/specs/00-foundation.md §9.1. Components use the app
+ * semantic tokens only, through Tailwind classes (tailwind.config.ts).
+ * This is the only file allowed to contain hex values (scripts/check-no-hex.mjs).
+ */
+
+/* Primitives — define once, reference via semantic tokens */
+:root {
+  /* Grey */
+  --color-grey-900: #070A0E;
+  --color-grey-800: #151719;
+  --color-grey-700: #25272B;
+  --color-grey-600: #2C2F32;
+  --color-grey-500: #4A4C4F;
+  --color-grey-400: #5E6062;
+  --color-grey-300: #8F9193;
+  --color-grey-200: #C1C2C3;
+  --color-grey-100: #DADADB;
+  --color-grey-50:  #F0F0F1;
+  --color-grey-25:  #FAFAFA;
+
+  /* Blue */
+  --color-blue-900: #082A5E;
+  --color-blue-800: #0A367B;
+  --color-blue-700: #0D469E;
+  --color-blue-600: #0044AE;
+  --color-blue-500: #115ACB;
+  --color-blue-400: #89B7FF;
+  --color-blue-300: #6196EA;
+  --color-blue-200: #92B7F0;
+  --color-blue-100: #B6CFF5;
+  --color-blue-50:  #E7EFFC;
+
+  /* Green */
+  --color-green-900: #084406;
+  --color-green-800: #0A5908;
+  --color-green-700: #0D720A;
+  --color-green-600: #11930D;
+  --color-green-500: #13A10E;
+  --color-green-400: #42B43E;
+  --color-green-300: #61C05E;
+  --color-green-200: #92D490;
+  --color-green-100: #B6E2B4;
+  --color-green-50:  #E7F6E7;
+
+  /* Red */
+  --color-red-900: #581618;
+  --color-red-800: #731D1F;
+  --color-red-700: #942528;
+  --color-red-600: #BE2F33;
+  --color-red-500: #D13438;
+  --color-red-400: #DA5D60;
+  --color-red-300: #E0777A;
+  --color-red-200: #EAA2A3;
+  --color-red-100: #F1C0C1;
+  --color-red-50:  #FAEBEB;
+
+  /* Yellow */
+  --color-yellow-900: #854D00;
+  --color-yellow-800: #B36800;
+  --color-yellow-700: #DB8000;
+  --color-yellow-600: #FA9200;
+  --color-yellow-500: #FFAA33;
+  --color-yellow-400: #FFC16B;
+  --color-yellow-300: #FFD294;
+  --color-yellow-200: #FFE3BD;
+  --color-yellow-100: #FFF2E0;
+  --color-yellow-50:  #FFF9F0;
+
+  /* Violet */
+  --color-violet-900: #380070;
+  --color-violet-800: #5700AD;
+  --color-violet-700: #6600CC;
+  --color-violet-600: #7000E0;
+  --color-violet-500: #7F00FF;
+  --color-violet-400: #B870FF;
+  --color-violet-300: #D1A3FF;
+  --color-violet-200: #E3C7FF;
+  --color-violet-100: #F2E5FF;
+  --color-violet-50:  #F7F0FF;
+
+  /* Orange */
+  --color-orange-900: #802400;
+  --color-orange-800: #B33300;
+  --color-orange-700: #D63D00;
+  --color-orange-600: #E63900;
+  --color-orange-500: #FF4405;
+  --color-orange-400: #FF956B;
+  --color-orange-300: #FFBA9E;
+  --color-orange-200: #FFD3C2;
+  --color-orange-100: #FFE9E0;
+  --color-orange-50:  #FFF4F0;
+
+  /* Semantic tokens */
+  --text-primary:   var(--color-grey-900);
+  --text-secondary: var(--color-grey-500);
+  --bg-primary:     #FFFFFF;
+  --bg-surface:     var(--color-grey-25);
+  --bg-subtle:      var(--color-grey-50);
+  --brand:          var(--color-blue-500);
+
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-28: 112px;
+}
+
+/* App semantic tokens (00-foundation.md §9.1) */
+:root {
+  /* text */
+  --fg-primary:      var(--color-grey-900);   /* #070A0E */
+  --fg-secondary:    var(--color-grey-500);   /* #4A4C4F */
+  --fg-disabled:     var(--color-grey-400);   /* #5E6062 */
+  --fg-placeholder:  var(--color-grey-400);   /* #5E6062 — grey-300 fails 4.5:1 */
+  --fg-link:         var(--color-blue-500);   /* #115ACB */
+  --fg-inverse:      #FFFFFF;
+  /* surfaces */
+  --surface:         #FFFFFF;                 /* cards, modals (bg-white-primary) */
+  --surface-page:    var(--color-grey-25);    /* #FAFAFA page background */
+  --surface-subtle:  var(--color-grey-50);    /* #F0F0F1 hover, dividers, skeletons */
+  --surface-pressed: var(--color-grey-100);   /* #DADADB */
+  --overlay:         rgb(7 10 14 / 0.48);     /* grey-900 at 48% */
+  /* borders */
+  --border:          var(--color-grey-100);   /* decorative: cards, dividers */
+  --border-strong:   var(--color-grey-200);   /* hover */
+  --border-control:  var(--color-grey-300);   /* inputs, checkboxes: ≥ 3:1 (WCAG 1.4.11) */
+  --focus-ring:      var(--color-blue-500);
+  /* brand */
+  --brand:           var(--color-blue-500);
+  --brand-hover:     var(--color-blue-600);
+  --brand-pressed:   var(--color-blue-700);
+  --brand-subtle:    var(--color-blue-50);
+  /* status (design.md "Semantic Status Badge" + state table) */
+  --success-bg: var(--color-green-50);  --success-border: var(--color-green-200); --success-fg: var(--color-green-700); --success-solid: var(--color-green-600);
+  --warning-bg: var(--color-yellow-50); --warning-border: var(--color-yellow-200); --warning-fg: var(--color-yellow-900); --warning-solid: var(--color-yellow-800);
+  --danger-bg:  var(--color-red-50);    --danger-border:  var(--color-red-200);   --danger-fg:  var(--color-red-700);   --danger-solid:  var(--color-red-600);
+  --info-bg:    var(--color-blue-50);   --info-border:    var(--color-blue-200);  --info-fg:    var(--color-blue-700);  --info-solid:    var(--color-blue-500);
+  --accent-bg:  var(--color-violet-50); --accent-border:  var(--color-violet-200); --accent-fg: var(--color-violet-700); --accent-solid: var(--color-violet-500);
+  /* highlights in the document viewer (07) */
+  --highlight:        rgb(255 170 51 / 0.35);   /* yellow-500 at 35% */
+  --highlight-active: rgb(17 90 203 / 0.25);    /* blue-500 at 25% */
+  --highlight-mark:    var(--color-yellow-200); /* matched source sentence in the text viewer's <mark> (07 §6.5); PDF spans use --highlight */
+  --highlight-outline: var(--color-yellow-500); /* page-level highlight outline (07 §6.5) */
+}
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

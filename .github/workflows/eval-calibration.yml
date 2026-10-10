@@ -1,0 +1,49 @@
+# Monthly confidence-calibration check (15-evals.md §6.9.4, §6.11). Runs a fresh live full extraction and fails
+# when any bucket (n ≥ 5) is off by 0.15 or more, opening an issue that tells the team to turn on the UI
+# calibration warning.
+name: Evals — calibration
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: contractiq
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  OPENAI_PRICE_INPUT_PER_MTOK: '2.5'
+  OPENAI_PRICE_OUTPUT_PER_MTOK: '10'
+
+jobs:
+  calibration:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, issues: write }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the eval dataset (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/contractiq-eval-data
+          ssh-key: ${{ secrets.EVAL_DATA_DEPLOY_KEY }}
+          path: contractiq/evals/datasets
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contractiq/package-lock.json }
+      - run: npm ci
+      - id: calibration
+        name: Calibration — fresh live run
+        run: npm run eval:calibration -- --live --fresh --gate --out evals/reports/calibration
+        env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: eval-reports-calibration, path: contractiq/evals/reports/, retention-days: 30 }
+      - if: failure() && steps.calibration.outcome == 'failure'
+        name: Open an issue (calibration drift)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          { echo "Monthly calibration check failed. **Set \`NEXT_PUBLIC_SHOW_CALIBRATION_WARNING=true\` in Netlify** (engineering-doc §8.8) until the model is recalibrated."; echo
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"; echo
+            cat evals/reports/calibration/summary.md 2>/dev/null; } > issue.md
+          gh issue create --title "Calibration drift: MCE ≥ 0.15 ($(date -u +%Y-%m)) — turn on the calibration warning" --body-file issue.md

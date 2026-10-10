@@ -1,0 +1,16 @@
+/* Document viewer highlights (07 §6.5). Semantic tokens only (tokens.css). */
+/* The PDF text layer sits in its own stacking context above the canvas, so a blend mode has nothing to blend
+   with and an opaque colour hides the rendered text. A translucent fill lets the canvas text show through. */
+.react-pdf__Page__textContent span[data-ciq-highlight='true'] {
+  background-color: var(--highlight);
+  border-radius: 2px;
+}
+mark[data-ciq-highlight='true'] {
+  background-color: var(--highlight-mark);
+  color: var(--fg-primary);
+  border-radius: 2px;
+}
+[data-page][data-highlighted='page'] {
+  outline: 2px solid var(--highlight-outline);
+  outline-offset: 4px;
+}

@@ -1,0 +1,16 @@
+@import '../styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Anchor of the open onboarding tip (14 §10). */
+  [data-onboarding-active='true'] {
+    @apply ring-2 ring-focus ring-offset-2 ring-offset-surface;
+  }
+  /* Page h1 receives programmatic focus after route changes (useRouteFocus); it is not interactive. */
+  main h1[tabindex='-1']:focus {
+    @apply outline-none;
+  }
+}

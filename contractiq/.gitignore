@@ -1,0 +1,55 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# ContractIQ
+# PDF.js worker, copied from pdfjs-dist by scripts/copy-pdf-worker.mjs
+/public/pdf.worker.min.mjs
+.netlify
+/playwright-report/
+/test-results/
+# Eval dataset: confidential contracts + SME labels, checked out from the private contractiq-eval-data repo (15-evals.md §6.2).
+/evals/datasets/*
+!/evals/datasets/.gitkeep
+/evals/reports/*
+!/evals/reports/.gitkeep
+# Never commit real secrets: only .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# Playwright signed-in storage state (contains test session cookies)
+/tests/.auth/

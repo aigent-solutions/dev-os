@@ -1,0 +1,9 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "plugins": ["local"],
+  "rules": {
+    "local/no-server-in-client": "error"
+  },
+  "ignorePatterns": ["eslint-rules/", "public/", "supabase/", ".netlify/", "src/types/database.types.ts"]
+}
