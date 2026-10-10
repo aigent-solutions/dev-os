@@ -58,7 +58,8 @@ jobs:
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
-          supabase status -o env >> "$GITHUB_ENV"
+          # status -o env quotes every value (KEY="v"); $GITHUB_ENV keeps quotes literally, so strip them.
+          supabase status -o env | sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
       - name: Map Supabase keys
         run: |
@@ -91,7 +92,8 @@ jobs:
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
-          supabase status -o env >> "$GITHUB_ENV"
+          # status -o env quotes every value (KEY="v"); $GITHUB_ENV keeps quotes literally, so strip them.
+          supabase status -o env | sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
       - name: Map Supabase keys
         run: |
@@ -176,7 +178,8 @@ jobs:
       - run: supabase start -x studio,realtime,edge-runtime,logflare,vector,imgproxy,supavisor
       - name: Export local Supabase env
         run: |
-          supabase status -o env >> "$GITHUB_ENV"
+          # status -o env quotes every value (KEY="v"); $GITHUB_ENV keeps quotes literally, so strip them.
+          supabase status -o env | sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
       - name: Map Supabase keys
         run: |
