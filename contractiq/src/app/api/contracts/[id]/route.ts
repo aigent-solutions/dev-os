@@ -3,6 +3,7 @@ import { IdParamsSchema, parseBody, parseParams, parseParamsOr404 } from '@/lib/
 import { enforceRateLimit } from '@/lib/api/rate-limit';
 import { requireUser } from '@/lib/api/require-user';
 import { withApiHandler } from '@/lib/api/with-api-handler';
+import { recordAuditEvent } from '@/lib/security/auditLog';
 import { ContractUpdateSchema } from '@/lib/validation/contract';
 import { deleteContract, getContractDetail, updateContract } from '@/server/services/contracts.service';
 
@@ -27,9 +28,10 @@ export const PATCH = withApiHandler<{ id: string }>(async (req, { params }) => {
 });
 
 /** DELETE /api/contracts/{id} — any status, 204 (13 §5.1). Malformed id → 400. */
-export const DELETE = withApiHandler<{ id: string }>(async (_req, { params, log }) => {
+export const DELETE = withApiHandler<{ id: string }>(async (_req, { params, requestId, log }) => {
   const { user, supabase } = await requireUser();
   const { id } = parseParams(params, IdParamsSchema);
   await deleteContract(supabase, user.id, id, log);
+  await recordAuditEvent({ event: 'contract.deleted', actorUserId: user.id, target: { type: 'contract', id }, requestId }, log);
   return new Response(null, { status: 204 });
 });

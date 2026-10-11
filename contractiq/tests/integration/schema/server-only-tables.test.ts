@@ -4,7 +4,8 @@ import { adminClient, signedInClient } from '../../helpers/supabase';
 import { seedContract } from '../../helpers/factories';
 import { SEED_USERS, type SeededUser } from '../../setup/seed-users';
 
-// 00-foundation.md §12.3 — rate_limits and ai_usage_logs are service-role only, even for the owner's own rows.
+// 00-foundation.md §12.3 — rate_limits, ai_usage_logs and (Stage 7) audit_events are service-role only, even for
+// the owner's own rows.
 let alice: SeededUser;
 let contractId: string;
 
@@ -50,6 +51,38 @@ describe.each(['rate_limits', 'ai_usage_logs'] as const)('%s as the signed-in ow
     expect(denied(upd.error) || (upd.data ?? []).length === 0).toBe(true);
     expect(denied(del.error) || (del.data ?? []).length === 0).toBe(true);
     expect(await count(`select count(*) from public.${table} where user_id = $1`, [alice.id])).toBe(before);
+  });
+});
+
+describe('audit_events (Stage 7) as the signed-in actor', () => {
+  it("the user can't read, write, change or delete audit rows about themselves", async () => {
+    const admin = adminClient();
+    const seeded = await admin.from('audit_events').insert({ event: 'contract.deleted', actor_user_id: alice.id, target_type: 'contract', target_id: contractId }).select('id').single();
+    if (seeded.error) throw seeded.error;
+    const alicedb = await signedInClient(alice);
+    const sel = await alicedb.from('audit_events').select('*');
+    expect(denied(sel.error) || (sel.data ?? []).length === 0).toBe(true);
+    const ins = await alicedb.from('audit_events').insert({ event: 'account.deleted', actor_user_id: alice.id });
+    expect(denied(ins.error)).toBe(true);
+    const before = await count('select count(*) from public.audit_events where actor_user_id = $1', [alice.id]);
+    const upd = await alicedb.from('audit_events').update({ event: 'contract.uploaded' }).eq('actor_user_id', alice.id).select();
+    const del = await alicedb.from('audit_events').delete().eq('actor_user_id', alice.id).select();
+    expect(denied(upd.error) || (upd.data ?? []).length === 0).toBe(true);
+    expect(denied(del.error) || (del.data ?? []).length === 0).toBe(true);
+    expect(await count('select count(*) from public.audit_events where actor_user_id = $1', [alice.id])).toBe(before);
+  });
+
+  it('is append-only even for the service role: an UPDATE is rejected by the trigger', async () => {
+    const admin = adminClient();
+    const { data } = await admin.from('audit_events').insert({ event: 'contract.uploaded', actor_user_id: alice.id }).select('id').single();
+    const upd = await admin.from('audit_events').update({ event: 'contract.deleted' }).eq('id', data!.id);
+    expect(upd.error?.message).toMatch(/append-only/);
+  });
+
+  it('rejects an unknown event name and non-object metadata (CHECK constraints)', async () => {
+    const admin = adminClient();
+    expect((await admin.from('audit_events').insert({ event: 'something.else', actor_user_id: alice.id })).error?.code).toBe('23514');
+    expect((await admin.from('audit_events').insert({ event: 'contract.uploaded', actor_user_id: alice.id, metadata: [] })).error?.code).toBe('23514');
   });
 });
 

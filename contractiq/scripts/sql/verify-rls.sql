@@ -9,5 +9,5 @@ union all
 select 'server_only_grant', table_name || ':' || grantee || ':' || privilege_type
 from information_schema.role_table_grants
 where table_schema = 'public'
-  and table_name in ('rate_limits', 'ai_usage_logs')
+  and table_name in ('rate_limits', 'ai_usage_logs', 'audit_events')
   and grantee in ('anon', 'authenticated');

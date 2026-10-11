@@ -126,6 +126,30 @@ describe('step 4 — rate limits', () => {
   });
 });
 
+describe('step 5 — audit_events (Stage 7)', () => {
+  it('prunes audit rows older than now − 365 days', async () => {
+    fake = fakeSupabase({ onQuery: (q) => (q.table === 'audit_events' ? { count: 4 } : quiet(q)) });
+    const s = await runRetention(NOW);
+    const q = fake.queries.find((x) => x.table === 'audit_events')!;
+    expect(q.op).toBe('delete');
+    expect(filter(q, 'lt')).toEqual(['lt', 'occurred_at', new Date(NOW.getTime() - 365 * 86_400_000).toISOString()]);
+    expect(s.auditEventsPruned).toBe(4);
+  });
+
+  it('a failing audit prune is isolated: the later checks still run', async () => {
+    fake = fakeSupabase({
+      onQuery: (q) => {
+        if (q.table === 'audit_events') throw new Error('db down');
+        return quiet(q);
+      },
+    });
+    const s = await runRetention(NOW);
+    expect(s.auditEventsPruned).toBe(0);
+    expect(s.costCheck).toBe('ok');
+    expect(s.correctionRateCheck).toBe('ok');
+  });
+});
+
 describe('isolation between steps', () => {
   it('a failing step does not stop the later ones', async () => {
     fake = fakeSupabase({
@@ -144,6 +168,6 @@ describe('isolation between steps', () => {
   it('returns the full summary shape', async () => {
     fake = fakeSupabase({ onQuery: quiet });
     const s = await runRetention(NOW);
-    expect(Object.keys(s).sort()).toEqual(['correctionRateCheck', 'costCheck', 'durationMs', 'expiredPdfs', 'orphanSweep', 'pendingSweep', 'rateLimitsPruned']);
+    expect(Object.keys(s).sort()).toEqual(['auditEventsPruned', 'correctionRateCheck', 'costCheck', 'durationMs', 'expiredPdfs', 'orphanSweep', 'pendingSweep', 'rateLimitsPruned']);
   });
 });

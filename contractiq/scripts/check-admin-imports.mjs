@@ -11,6 +11,7 @@ const ALLOWLIST = [
   'src/server/services/usage.service.ts',
   'src/lib/ai/usage-log.ts',
   'src/lib/api/rate-limit.ts',
+  'src/lib/security/auditLog.ts', // writes the server-only audit_events table (Stage 7)
 ];
 const ALLOWED_PREFIXES = ['netlify/functions/', 'tests/', 'evals/'];
 const IMPORT = /from\s+['"](@\/lib\/supabase\/admin|[./]+(?:lib\/)?supabase\/admin)['"]|import\(['"]@\/lib\/supabase\/admin['"]\)/;

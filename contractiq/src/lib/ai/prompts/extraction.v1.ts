@@ -1,4 +1,5 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { neutralisePromptTags } from '@/lib/security/promptGuard';
 import type { ContractType } from '@/types/domain';
 import { TERM_LIBRARY, type RequestedTerm, type TermDefinition } from '../term-library';
 import { MSA_FEW_SHOT } from './few-shot/msa';
@@ -32,10 +33,10 @@ Rules:
 10. Respond with the JSON object only.`;
 }
 
-/** <terms> (key, name, hint) and the contract text, unchanged, including [PAGE N] markers. */
+/** <terms> (key, name, hint) and the contract text with [PAGE N] markers; tag-like text in it is neutralised. */
 export function userContent(terms: Pick<TermDefinition, 'key' | 'name' | 'extractionHint'>[], type: ContractType, text: string): string {
   const termList = JSON.stringify(terms.map((t) => ({ key: t.key, name: t.name, hint: t.extractionHint })));
-  return `<terms>\n${termList}\n</terms>\n<contract type="${type}">\n${text}\n</contract>`;
+  return `<terms>\n${termList}\n</terms>\n<contract type="${type}">\n${neutralisePromptTags(text)}\n</contract>`;
 }
 
 export function buildMessages(p: {

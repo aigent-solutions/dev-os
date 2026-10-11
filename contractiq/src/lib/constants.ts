@@ -24,6 +24,7 @@ export const CONFIDENCE_LOW = 50; // < 50 red + ⚠️ ; 50–79 amber
 export const UNVERIFIED_CONFIDENCE_CAP = 49;
 export const PDF_RETENTION_DAYS = 90;
 export const PENDING_UPLOAD_TTL_HOURS = 24;
+export const AUDIT_RETENTION_DAYS = 365; // audit_events (Stage 7, docs/security/security-plan.md §6)
 export const LEGAL_DISCLAIMER =
   'This is an AI-assisted review tool, not legal advice. Always verify critical terms with a qualified lawyer.';
 export const LOW_CONFIDENCE_TOOLTIP = 'Low confidence — we recommend verifying this in the document directly.';

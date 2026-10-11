@@ -1,5 +1,5 @@
 import '@/lib/server-guard'; // loaded by the retention-cleanup Netlify function
-import { PDF_RETENTION_DAYS, PENDING_UPLOAD_TTL_HOURS, STORAGE_BUCKET } from '@/lib/constants';
+import { AUDIT_RETENTION_DAYS, PDF_RETENTION_DAYS, PENDING_UPLOAD_TTL_HOURS, STORAGE_BUCKET } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 import { chunk, isContractPath } from '@/lib/storage-paths';
 import { createAdminSupabase } from '@/lib/supabase/admin';
@@ -11,6 +11,7 @@ export type RetentionSummary = {
   pendingSweep: { rowsDeleted: number; objectsRemoved: number };
   orphanSweep: { foldersScanned: number; objectsRemoved: number; truncated: boolean };
   rateLimitsPruned: number;
+  auditEventsPruned: number;
   costCheck: 'ok' | 'warning' | 'failed';
   correctionRateCheck: 'ok' | 'warning' | 'failed';
   durationMs: number;
@@ -38,6 +39,7 @@ export async function runRetention(now = new Date()): Promise<RetentionSummary> 
     pendingSweep: { rowsDeleted: 0, objectsRemoved: 0 },
     orphanSweep: { foldersScanned: 0, objectsRemoved: 0, truncated: false },
     rateLimitsPruned: 0,
+    auditEventsPruned: 0,
     costCheck: 'failed',
     correctionRateCheck: 'failed',
     durationMs: 0,
@@ -60,6 +62,14 @@ export async function runRetention(now = new Date()): Promise<RetentionSummary> 
       .lt('window_start', new Date(now.getTime() - RATE_LIMIT_KEEP_MS).toISOString());
     if (error) throw error;
     summary.rateLimitsPruned = count ?? 0;
+  });
+  await step('audit_events', async () => {
+    const { error, count } = await admin
+      .from('audit_events')
+      .delete({ count: 'exact' })
+      .lt('occurred_at', new Date(now.getTime() - AUDIT_RETENTION_DAYS * 86_400_000).toISOString());
+    if (error) throw error;
+    summary.auditEventsPruned = count ?? 0;
   });
   await step('cost_check', async () => {
     summary.costCheck = await runCostBudgetCheck(now);

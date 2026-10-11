@@ -3,6 +3,7 @@ export const ERROR_CATALOG = {
   VALIDATION_ERROR: { status: 400, retryable: false, message: 'Please check the highlighted fields.' },
   UNAUTHORIZED: { status: 401, retryable: false, message: 'Please sign in to continue.' },
   FORBIDDEN: { status: 403, retryable: false, message: "You don't have access to this." },
+  UNSUPPORTED_MEDIA_TYPE: { status: 415, retryable: false, message: 'Send the request body as JSON.' },
   NOT_FOUND: { status: 404, retryable: false, message: "We couldn't find that contract." },
   INVALID_STATUS: { status: 409, retryable: false, message: "This contract isn't ready for that action yet." },
   ALREADY_PROCESSING: { status: 409, retryable: false, message: 'This contract is already being analysed.' },

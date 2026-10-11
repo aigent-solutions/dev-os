@@ -1,3 +1,4 @@
+import { neutralisePromptTags } from '@/lib/security/promptGuard';
 import type { ChatQueryType, ContractType } from '@/types/domain';
 
 // Chat prompt v1 (09 §6.7). Changing any text here is a new PROMPT_VERSION.
@@ -22,7 +23,7 @@ The user is asking about this conversation. You may answer from the prior messag
 The user is asking about this conversation AND the contract. Use the prior messages for what was said earlier, and the contract for facts about the agreement. Cite every contract fact with [Page X].`,
 };
 
-/** The contract text is included for all three query types (engineering-doc §8.5 step 6). */
+/** The contract text is included for all three query types (engineering-doc §8.5 step 6), its tags neutralised. */
 export function buildChatSystemPrompt(args: { contractType: ContractType; queryType: ChatQueryType; contractText: string }): string {
   const type = args.contractType === 'nda' ? 'Non-Disclosure Agreement (NDA)' : 'Master Service Agreement (MSA)';
   return `${BASE}${VARIANTS[args.queryType]}
@@ -30,6 +31,6 @@ export function buildChatSystemPrompt(args: { contractType: ContractType; queryT
 The user says this contract is a ${type}.
 
 <contract>
-${args.contractText}
+${neutralisePromptTags(args.contractText)}
 </contract>`;
 }

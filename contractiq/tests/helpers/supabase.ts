@@ -10,7 +10,7 @@ type RouteHandler<P> = (req: NextRequest, ctx: { params: P }) => Promise<Respons
 /** Invokes a route handler as `user` (or signed out), with that user's auth cookies. */
 export async function callRoute<P extends Record<string, string>>(
   handler: RouteHandler<P>,
-  opts: { method?: string; path: string; params?: P; body?: unknown; user?: SeededUser },
+  opts: { method?: string; path: string; params?: P; body?: unknown; user?: SeededUser; headers?: Record<string, string> },
 ): Promise<Response> {
   const cookies = opts.user ? await sessionCookies(opts.user) : [];
   cookieJar.reset(cookies);
@@ -19,6 +19,7 @@ export async function callRoute<P extends Record<string, string>>(
     headers: {
       ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
       ...(cookies.length ? { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') } : {}),
+      ...opts.headers, // e.g. a cross-site Origin, or a non-JSON Content-Type (security tests)
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
@@ -27,6 +28,7 @@ export async function callRoute<P extends Record<string, string>>(
 
 /** App tables, children first. Used between integration test files. */
 const APP_TABLES = [
+  'audit_events',
   'chat_messages',
   'chat_sessions',
   'key_terms',

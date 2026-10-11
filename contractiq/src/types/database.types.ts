@@ -25,6 +25,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"audit_events": {
+                  Row: {
+                    "actor_user_id": string | null,"event": string,"id": number,"metadata": NonNullable<Json>,"occurred_at": string,"request_id": string | null,"target_id": string | null,"target_type": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_user_id"?: string | null,"event": string,"id"?: never,"metadata"?: NonNullable<Json>,"occurred_at"?: string,"request_id"?: string | null,"target_id"?: string | null,"target_type"?: string | null
+                  }
+                  Update: {
+                    "actor_user_id"?: string | null,"event"?: string,"id"?: never,"metadata"?: NonNullable<Json>,"occurred_at"?: string,"request_id"?: string | null,"target_id"?: string | null,"target_type"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"chat_messages": {
                   Row: {
                     "citation_missing": boolean,"cited_pages": (number)[],"completion_tokens": number | null,"content": string,"contract_id": string,"created_at": string,"id": string,"is_not_found": boolean,"prompt_tokens": number | null,"query_type": Database["public"]['Enums']["chat_query_type"] | null,"role": Database["public"]['Enums']["chat_role"],"session_id": string,"status": Database["public"]['Enums']["message_status"],"user_id": string

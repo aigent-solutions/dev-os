@@ -2,6 +2,7 @@ import 'server-only';
 import type { NextRequest } from 'next/server';
 import { z, type ZodError, type ZodTypeAny } from 'zod';
 import { appError } from './errors';
+import { isJsonContentType } from '@/lib/security/requestGuard';
 
 // Request parsing (00-foundation.md §6.6). Field errors become VALIDATION_ERROR details.
 function toValidationError(e: ZodError) {
@@ -14,6 +15,7 @@ function toValidationError(e: ZodError) {
 }
 
 export async function parseBody<S extends ZodTypeAny>(req: Request, schema: S): Promise<z.infer<S>> {
+  if (!isJsonContentType(req)) throw appError('UNSUPPORTED_MEDIA_TYPE'); // a cross-site form can't send JSON
   let json: unknown;
   try {
     json = await req.json();

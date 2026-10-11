@@ -15,27 +15,49 @@ const thrown = async (fn: () => unknown) => {
 };
 const Schema = z.object({ name: z.string().min(2), age: z.number().int() }).strict();
 
+/** A POST as the app's clients send it (api-client.ts, sse-client.ts): Content-Type application/json. */
+const jsonPost = (body: string, contentType = 'application/json') =>
+  new Request('http://x/', { method: 'POST', headers: { 'content-type': contentType }, body });
+
 describe('parseBody', () => {
+  it.each(['text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data; boundary=x'])(
+    'Content-Type %s → 415 UNSUPPORTED_MEDIA_TYPE, even when the body is valid JSON (a cross-site form)',
+    async (type) => {
+      const e = await thrown(() => parseBody(jsonPost(JSON.stringify({ name: 'ab', age: 3 }), type), Schema));
+      expect(e.status).toBe(415);
+      expect(e.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+    },
+  );
+
+  it('no Content-Type → 415', async () => {
+    const e = await thrown(() => parseBody(new Request('http://x/', { method: 'POST', body: '{}' }), Schema));
+    expect(e.status).toBe(415);
+  });
+
+  it('application/json with a charset parameter is accepted', async () => {
+    expect(await parseBody(jsonPost(JSON.stringify({ name: 'ab', age: 3 }), 'application/json; charset=utf-8'), Schema)).toEqual({ name: 'ab', age: 3 });
+  });
+
   it('invalid JSON → 400 with a _form detail', async () => {
-    const e = await thrown(() => parseBody(new Request('http://x/', { method: 'POST', body: '{not json' }), Schema));
+    const e = await thrown(() => parseBody(jsonPost('{not json'), Schema));
     expect(e.status).toBe(400);
     expect(e.code).toBe('VALIDATION_ERROR');
     expect(e.details).toEqual({ _form: 'Body must be valid JSON' });
   });
 
   it('Zod field errors → details keyed by field', async () => {
-    const e = await thrown(() => parseBody(new Request('http://x/', { method: 'POST', body: JSON.stringify({ name: 'a', age: 1.5 }) }), Schema));
+    const e = await thrown(() => parseBody(jsonPost(JSON.stringify({ name: 'a', age: 1.5 })), Schema));
     expect(e.status).toBe(400);
     expect(Object.keys(e.details!).sort()).toEqual(['age', 'name']);
   });
 
   it('unknown keys on a strict schema → _form', async () => {
-    const e = await thrown(() => parseBody(new Request('http://x/', { method: 'POST', body: JSON.stringify({ name: 'ab', age: 1, plan: 'pro' }) }), Schema));
+    const e = await thrown(() => parseBody(jsonPost(JSON.stringify({ name: 'ab', age: 1, plan: 'pro' })), Schema));
     expect(e.details?._form).toMatch(/Unrecognized key/);
   });
 
   it('valid body → parsed data', async () => {
-    expect(await parseBody(new Request('http://x/', { method: 'POST', body: JSON.stringify({ name: 'ab', age: 3 }) }), Schema)).toEqual({ name: 'ab', age: 3 });
+    expect(await parseBody(jsonPost(JSON.stringify({ name: 'ab', age: 3 })), Schema)).toEqual({ name: 'ab', age: 3 });
   });
 });
 
