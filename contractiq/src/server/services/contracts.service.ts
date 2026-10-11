@@ -23,6 +23,9 @@ import type { ContractDetail, ContractUpdateResponse, ListContractsResponse } fr
 import type { Database } from '@/types/database.types';
 import type { ContractStatus, ContractType, ProcessingStage } from '@/types/domain';
 
+/** pdf.js's own verdicts on a document: the file is bad, not our runtime. Logged as rejections (info). */
+const PDF_DOCUMENT_ERRORS = new Set(['InvalidPDFException', 'MissingPDFException', 'UnexpectedResponseException', 'FormatError', 'PasswordException']);
+
 type Client = SupabaseClient<Database>;
 
 // ---------------------------------------------------------------------------------------------
@@ -121,8 +124,14 @@ export async function extractContractText(
   } catch (err) {
     if (err instanceof AppError && (err.status === 413 || err.status === 422)) {
       await cleanup();
-      const cause = err.cause instanceof Error ? { cause_name: err.cause.name, cause_message: err.cause.message.slice(0, 200) } : {};
-      log.info('contract_extract_rejected', { contract_id: contractId, code: err.code, ...cause });
+      const cause = err.cause instanceof Error ? err.cause : undefined;
+      if (cause && !PDF_DOCUMENT_ERRORS.has(cause.name)) {
+        // Not a verdict on the user's file (e.g. a module missing from the deployed bundle): log it in full.
+        log.error('contract_extract_internal_error', { contract_id: contractId, code: err.code, cause_name: cause.name, cause_message: cause.message, cause_stack: cause.stack });
+      } else {
+        const fields = cause ? { cause_name: cause.name, cause_message: cause.message.slice(0, 200) } : {};
+        log.info('contract_extract_rejected', { contract_id: contractId, code: err.code, ...fields });
+      }
     }
     throw err;
   }

@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint && node scripts/check-no-hex.mjs && node scripts/check-admin-imports.mjs",
+    "check:pdf-worker": "node scripts/check-pdf-worker-traced.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
     "test:unit": "vitest run --project unit --coverage --coverage.provider=v8 --coverage.include=src/lib/** --coverage.thresholds.lines=85",

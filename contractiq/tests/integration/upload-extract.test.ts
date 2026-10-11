@@ -9,6 +9,22 @@ import { createTestUser, deleteTestUser, seedContract } from '../helpers/factori
 import { callRoute, signedInClient } from '../helpers/supabase';
 import type { SeededUser } from '../setup/seed-users';
 
+// The real extractor, unless a test sets `extractFailure` to simulate a runtime fault inside pdf.js.
+let extractFailure: Error | null = null;
+vi.mock('@/lib/pdf/extract-text', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/pdf/extract-text')>();
+  const { appError } = await import('@/lib/api/errors');
+  return {
+    ...real,
+    extractPdfText: async (buf: Buffer) => {
+      if (!extractFailure) return real.extractPdfText(buf);
+      const e = appError('PDF_UNREADABLE');
+      e.cause = extractFailure;
+      throw e;
+    },
+  };
+});
+
 // 03-upload-extraction.md §12 — create → upload (user client, Storage RLS) → extract, on the local stack.
 const fixture = (name: string) => readFileSync(path.join(__dirname, '../fixtures/pdfs', name));
 const created: string[] = [];
@@ -80,6 +96,32 @@ describe('rejections delete the row and the object', () => {
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe(code);
     expect(await rowCount(id)).toBe(0);
     expect(await objectCount(storagePath)).toBe(0);
+  }, 30_000);
+
+  const logLines = (spy: unknown) => (spy as { mock: { calls: unknown[][] } }).mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+
+  it('a corrupt file is a rejection: info log, cause truncated, nothing at error level', async () => {
+    const { user, id } = await uploaded('corrupt.pdf');
+    await extract(user, id);
+    expect(logLines(console.log).find((l) => l.msg === 'contract_extract_rejected')).toMatchObject({ code: 'PDF_UNREADABLE', cause_name: 'InvalidPDFException' });
+    expect(logLines(console.error).filter((l) => String(l.msg).startsWith('contract_extract'))).toEqual([]);
+  }, 30_000);
+
+  it('a runtime fault inside pdf.js (e.g. its worker missing from the bundle) → error log with full message and stack', async () => {
+    const message = 'Setting up fake worker failed: "Cannot find module \'/var/task/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs\'"' + ' (padding past 200 chars)'.repeat(8);
+    extractFailure = new Error(message);
+    try {
+      const { user, id } = await uploaded('nda-3p.pdf');
+      const res = await extract(user, id);
+      expect(res.status).toBe(422);
+      expect(await rowCount(id)).toBe(0);
+      const line = logLines(console.error).find((l) => l.msg === 'contract_extract_internal_error');
+      expect(line).toMatchObject({ level: 'error', code: 'PDF_UNREADABLE', cause_name: 'Error', cause_message: message });
+      expect(String(line?.cause_stack)).toContain('Setting up fake worker failed');
+      expect(logLines(console.log).find((l) => l.msg === 'contract_extract_rejected')).toBeUndefined();
+    } finally {
+      extractFailure = null;
+    }
   }, 30_000);
 
   it('object never uploaded → PDF_UNREADABLE and the row is cleaned up', async () => {

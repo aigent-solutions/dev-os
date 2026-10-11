@@ -42,6 +42,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
+      - run: npm run build
+      # pdf.js's worker must be in the extract route's file trace, or extraction fails on Netlify.
+      - run: npm run check:pdf-worker
 
   db-integration:
     if: github.event_name != 'schedule'

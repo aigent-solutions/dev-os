@@ -8,9 +8,22 @@ import { pageMarker } from './page-markers';
 // document parsed after another one in the same process (README §6, "PDF text extraction").
 type TextItem = { str: string; transform: number[]; hasEOL?: boolean };
 
-/** Lazy-loaded so modules that only import this file's siblings never pay for pdf.js. */
+/**
+ * Lazy-loaded so modules that only import this file's siblings never pay for pdf.js.
+ *
+ * In Node, pdf.js runs its worker in-process and would `import('./pdf.worker.mjs')` at runtime. File
+ * tracing can't see that import, so the deployed Netlify function shipped without the worker and every
+ * extraction failed ("Setting up fake worker failed"). Importing it here by literal path gets it traced,
+ * and `globalThis.pdfjsWorker` is pdf.js's documented hook for handing over a worker already loaded.
+ * scripts/check-pdf-worker-traced.mjs keeps it in the build.
+ */
 async function loadPdfjs() {
-  return import('pdfjs-dist/legacy/build/pdf.mjs');
+  const [pdfjs, worker] = await Promise.all([
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.mjs'),
+  ]);
+  (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker ??= worker;
+  return pdfjs;
 }
 
 /** One page as `[PAGE N]\n<text>`, keeping line breaks by y-position. Every page gets a marker. */
