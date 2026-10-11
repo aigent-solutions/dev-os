@@ -40,13 +40,39 @@ describe('assertSameOriginWrite', () => {
     expect(blocked(req('POST', { origin: 'http://localhost:30001' }))?.status).toBe(403);
   });
 
-  it('the origin the request arrived on passes even when it differs from SITE_URL (deploy previews)', () => {
-    const preview = 'https://deploy-preview-7--contractiq2026.netlify.app';
-    expect(blocked(req('POST', { origin: preview, 'sec-fetch-site': 'same-origin' }, `${preview}/api/contracts`))).toBeNull();
+  // The live incident (Stage 7 deploy): on Netlify req.url doesn't carry the hostname the browser used, so a
+  // same-origin edit from the main--<site> branch address was refused when the Origin was compared to req.url.
+  const BRANCH = 'https://main--contractiq2026.netlify.app';
+  it('the real failing request — Sec-Fetch-Site same-origin, Origin = Host = main--… , req.url elsewhere — passes', () => {
+    const r = req('PATCH', { origin: BRANCH, 'sec-fetch-site': 'same-origin', host: 'main--contractiq2026.netlify.app' }, 'https://contractiq2026.netlify.app/api/key-terms/k1');
+    expect(blocked(r)).toBeNull();
   });
 
-  it('the configured SITE_URL passes even when the request URL differs (proxy/rewrite)', () => {
-    expect(blocked(req('POST', { origin: SITE }, 'http://internal-host:8080/api/contracts'))).toBeNull();
+  it('Sec-Fetch-Site is authoritative when present: same-origin passes whatever the Origin and URL say', () => {
+    expect(blocked(req('POST', { origin: 'https://some-other-alias.example', 'sec-fetch-site': 'same-origin' }, 'http://internal:8080/api/contracts'))).toBeNull();
+    expect(blocked(req('POST', { 'sec-fetch-site': 'none' }))).toBeNull(); // user-typed navigation
+  });
+
+  it('…and cross-site still fails even when the Origin looks like ours', () => {
+    expect(blocked(req('POST', { origin: SITE, 'sec-fetch-site': 'cross-site' }))?.status).toBe(403);
+  });
+
+  describe('fallback when Sec-Fetch-Site is absent (older browsers): Origin vs this deployment’s hosts', () => {
+    it('an Origin matching the Host header passes even when req.url differs (Netlify branch address)', () => {
+      expect(blocked(req('PATCH', { origin: BRANCH, host: 'main--contractiq2026.netlify.app' }, 'https://contractiq2026.netlify.app/api/x'))).toBeNull();
+    });
+    it('an Origin matching X-Forwarded-Host passes (first value of a list)', () => {
+      expect(blocked(req('POST', { origin: BRANCH, 'x-forwarded-host': 'main--contractiq2026.netlify.app, proxy.internal' }, 'http://internal:8080/api/x'))).toBeNull();
+    });
+    it('the configured SITE_URL passes even when the request URL differs', () => {
+      expect(blocked(req('POST', { origin: SITE }, 'http://internal-host:8080/api/contracts'))).toBeNull();
+    });
+    it('a foreign Origin is refused even when Host is ours', () => {
+      expect(blocked(req('POST', { origin: 'https://evil.example', host: 'main--contractiq2026.netlify.app' }))?.status).toBe(403);
+    });
+    it('host comparison ignores case', () => {
+      expect(blocked(req('POST', { origin: 'https://MAIN--ContractIQ2026.netlify.app', host: 'main--contractiq2026.netlify.app' }))).toBeNull();
+    });
   });
 
   it('no Origin and no Sec-Fetch-Site (server-to-server, tests) passes', () => {
@@ -60,7 +86,7 @@ describe('assertSameOriginWrite', () => {
   it('logs a warning with the origin when it blocks', () => {
     const log = { warn: vi.fn() } as unknown as Parameters<typeof assertSameOriginWrite>[1];
     expect(() => assertSameOriginWrite(req('POST', { origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' }), log)).toThrow();
-    expect(log!.warn).toHaveBeenCalledWith('request_blocked_cross_site', { origin: 'https://evil.example', sec_fetch_site: 'cross-site' });
+    expect(log!.warn).toHaveBeenCalledWith('request_blocked_cross_site', { origin: 'https://evil.example', sec_fetch_site: 'cross-site', host: null });
   });
 });
 

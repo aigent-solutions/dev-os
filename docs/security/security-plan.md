@@ -98,23 +98,32 @@ cross-site POST/PUT/PATCH/DELETE.
 
 **Second layer (new)** — doesn't depend on cookie behaviour:
 
-1. `assertSameOriginWrite()` runs in `withApiHandler` before auth or any business logic. A write request is
-   refused with **403 FORBIDDEN** (and a `request_blocked_cross_site` warning) when `Sec-Fetch-Site` is anything
-   other than `same-origin`/`none`, or `Origin` isn't this deployment (the request's own origin or `SITE_URL`;
-   `null` and lookalike origins are refused). Requests with neither header (server-to-server, tests) pass —
-   they carry no ambient browser cookies. Reads are never blocked.
+1. `assertSameOriginWrite()` runs in `withApiHandler` before auth or any business logic. For a write request:
+   - **`Sec-Fetch-Site` present** (every current browser): it alone decides. `same-origin`, or `none` for a
+     user-typed navigation, passes; `same-site` and `cross-site` get **403 FORBIDDEN** and a
+     `request_blocked_cross_site` warning. The browser sets this header and page scripts can't, so it stays
+     correct behind proxies that rewrite the request URL.
+   - **Absent** (older browsers): `Origin`, when sent, must match one of this deployment's hosts — the `Host`
+     and `X-Forwarded-Host` headers, the request URL's host, or `SITE_URL`'s. `null` and lookalike origins
+     are refused.
+   - **Neither header** (server-to-server, tests): passes — no ambient browser cookies. Reads are never blocked.
 2. `parseBody()` now requires `Content-Type: application/json` and answers **415 UNSUPPORTED_MEDIA_TYPE**
    otherwise. A cross-site `<form>` can only send form or `text/plain` bodies.
 
 Both app clients (`api-client.ts`, `sse-client.ts`) already send JSON from the same origin. In the full E2E run
 the guard blocked nothing: no `request_blocked_cross_site` lines and no 403/415 responses.
 
-**Tests.** `tests/unit/lib/security/requestGuard.test.ts` (24) and `tests/unit/lib/api/parse.test.ts` (+5).
-`tests/integration/security/request-guard.test.ts` (6): cross-site create, contract delete and account delete
-→ 403 with nothing changed; `text/plain` → 415 with no row; same-origin writes still succeed.
+**Tests.** `tests/unit/lib/security/requestGuard.test.ts` (30) and `tests/unit/lib/api/parse.test.ts` (+5).
+`tests/integration/security/request-guard.test.ts` (9): cross-site create, contract delete and account delete
+→ 403 with nothing changed; `text/plain` → 415 with no row; same-origin writes still succeed; writes from the
+`main--` branch address succeed, while a foreign `Origin` on that host is still refused.
 
-**After deploy:** confirm one write on the live site succeeds (§9, step 4). The allowed origins come from the
-request URL and `SITE_URL`; a proxy that changes both would need adding here.
+**Incident (fixed).** The first version compared `Origin` with the request URL and `SITE_URL` only. On Netlify
+the request URL doesn't carry the hostname the browser used, so on the day Stage 7 went live every write from
+the `main--contractiq2026.netlify.app` branch address got 403, even though the browser had marked it
+`same-origin` (writes from `contractiq2026.netlify.app` were unaffected). Fixed by making `Sec-Fetch-Site`
+the deciding signal and comparing the fallback with the `Host` headers. A unit test shaped like the real
+request and three integration cases for the `main--` address now cover it; the old guard fails them.
 
 ---
 

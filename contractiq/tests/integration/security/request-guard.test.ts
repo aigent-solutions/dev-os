@@ -2,8 +2,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as accountRoute from '@/app/api/account/route';
 import * as contractRoute from '@/app/api/contracts/[id]/route';
 import * as contractsRoute from '@/app/api/contracts/route';
+import * as keyTermRoute from '@/app/api/key-terms/[id]/route';
 import { closeDb, count } from '../../helpers/db';
-import { createTestUser, deleteTestUser, seedContract } from '../../helpers/factories';
+import { createTestUser, deleteTestUser, seedContract, seedKeyTerm } from '../../helpers/factories';
 import { callRoute } from '../../helpers/supabase';
 
 // Stage 7 #4 — through the real routes and the local stack: a signed-in user's browser, tricked by another
@@ -71,3 +72,38 @@ describe('same-origin writes still work', () => {
     expect(res.status).toBe(200);
   });
 });
+
+// The live incident: Kelsey's edit from the Netlify branch address main--contractiq2026.netlify.app was refused,
+// because on Netlify req.url doesn't carry that hostname. Requests here go to http://localhost:3000, so the
+// Origin and Host differ from req.url exactly as they did in production.
+describe('writes from another hostname of this site (Netlify main--… branch address)', () => {
+  const BRANCH = { origin: 'https://main--contractiq2026.netlify.app', host: 'main--contractiq2026.netlify.app' };
+
+  it('the failing request as the browser sent it (Sec-Fetch-Site: same-origin) → key-term edit saves, 200', async () => {
+    const user = await fresh();
+    const c = await seedContract(user.id);
+    const term = await seedKeyTerm(c.id, user.id);
+    const res = await callRoute(keyTermRoute.PATCH, {
+      method: 'PATCH', path: `/api/key-terms/${term.id}`, params: { id: term.id }, user,
+      body: { value: 'Scotland' }, headers: { ...BRANCH, 'sec-fetch-site': 'same-origin' },
+    });
+    expect(res.status).toBe(200);
+    expect(await count("select count(*) from public.key_terms where id = $1 and value = 'Scotland'", [term.id])).toBe(1);
+  });
+
+  it('an older browser without Sec-Fetch-Site: Origin matches the Host header → upload created, 201', async () => {
+    const user = await fresh();
+    const res = await callRoute(contractsRoute.POST, { method: 'POST', path: '/api/contracts', body: upload, user, headers: BRANCH });
+    expect(res.status).toBe(201);
+  });
+
+  it('…but a foreign Origin on that same Host is still refused, 403, nothing created', async () => {
+    const user = await fresh();
+    const res = await callRoute(contractsRoute.POST, {
+      method: 'POST', path: '/api/contracts', body: upload, user, headers: { origin: 'https://evil.example', host: BRANCH.host },
+    });
+    expect(res.status).toBe(403);
+    expect(await count('select count(*) from public.contracts where user_id = $1', [user.id])).toBe(0);
+  });
+});
+
