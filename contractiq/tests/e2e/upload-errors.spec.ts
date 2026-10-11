@@ -77,3 +77,22 @@ test('a 429 from /process shows the wait-time toast', async ({ page, user }) => 
   await page.getByRole('button', { name: 'Process Contract' }).click();
   await expect(page.getByText("You're doing that a lot — please wait 42 seconds and try again.")).toBeVisible();
 });
+
+test('OpenAI rejects the request (400) → contact-support card with no "Try again"', async ({ page, user }) => {
+  void user;
+  test.slow();
+  const token = uniqueToken();
+  await mockOverride(page, { match: token, kind: 'extraction', status: 400, times: 1 });
+  const file = path.join(mkdtempSync(path.join(tmpdir(), 'ciq-e2e-')), 'Rejected NDA.pdf');
+  writeFileSync(file, demoPdfWithToken(token));
+
+  await chooseNda(page);
+  await fileInput(page).setInputFiles(file);
+  await expect(page.getByRole('button', { name: 'Process Contract' })).toBeEnabled({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Process Contract' }).click();
+  await page.waitForURL(/\/contracts\/[0-9a-f-]{36}$/, { timeout: 60_000 });
+  const card = page.locator('[data-error-code]');
+  await expect(card).toHaveAttribute('data-error-code', 'OPENAI_REQUEST_REJECTED', { timeout: 30_000 });
+  await expect(card.getByText("Something went wrong on our side, and trying again won't fix it. Please contact support.")).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+});

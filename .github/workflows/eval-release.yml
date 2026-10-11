@@ -17,6 +17,10 @@ env:
   OPENAI_PRICE_INPUT_PER_MTOK: '2.5'
   OPENAI_PRICE_OUTPUT_PER_MTOK: '10'
   EVAL_STAGE: ${{ vars.EVAL_GATE_STAGE || 'beta' }}
+  # The models production uses, for the smoke test and the live evals alike. Netlify masks secret values, so
+  # mirror them as repository variables (Settings → Variables); unset/blank = the code default, gpt-4o.
+  OPENAI_EXTRACTION_MODEL: ${{ vars.OPENAI_EXTRACTION_MODEL }}
+  OPENAI_CHAT_MODEL: ${{ vars.OPENAI_CHAT_MODEL }}
 
 jobs:
   eval:
@@ -24,15 +28,21 @@ jobs:
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: contractiq/.nvmrc, cache: npm, cache-dependency-path: contractiq/package-lock.json }
+      - run: npm ci
+      # Real-API smoke test first (cheap, fails fast): the configured models must accept our request parameters.
+      - name: OpenAI smoke test — configured models, real API
+        run: npm run smoke:openai
+        env:
+          OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}'
+      # After the smoke test, which needs no dataset: it still runs before contractiq-eval-data exists.
       - name: Check out the eval dataset (private)
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/contractiq-eval-data
           ssh-key: ${{ secrets.EVAL_DATA_DEPLOY_KEY }}
           path: contractiq/evals/datasets
-      - uses: actions/setup-node@v4
-        with: { node-version-file: contractiq/.nvmrc, cache: npm, cache-dependency-path: contractiq/package-lock.json }
-      - run: npm ci
       - name: Extraction — live, full set + custom terms
         run: npm run eval:extraction -- --live --subset full --custom --stage "$EVAL_STAGE" --gate --out evals/reports/extraction
         env: { OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY_EVAL }}' }

@@ -4,19 +4,22 @@ import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resource
 import { OPENAI_TIMEOUT_MS } from '@/lib/constants';
 import { serverEnv } from '@/lib/env';
 import type { Logger } from '@/lib/logger';
-import { BACKGROUND_RETRY, isRetryableOpenAIError, withRetry, type RetryOptions } from '@/lib/retry';
+import { BACKGROUND_RETRY, isOpenAIRequestRejection, isRetryableOpenAIError, openAIErrorFields, withRetry, type OpenAIErrorFields, type RetryOptions } from '@/lib/retry';
 import { ExtractionResultSchema, type ExtractionResponseFormat, type ExtractionResult } from './extraction-schema';
 import { getOpenAI, hashUserId } from './openai-client';
 
 // One extraction call with per-mode retries and a single JSON repair retry (05 §6.3).
 export type Usage = { promptTokens: number; completionTokens: number };
-export type ExtractionErrorCode = 'OPENAI_UNAVAILABLE' | 'INVALID_AI_OUTPUT' | 'SYNC_BUDGET_EXCEEDED';
+// OPENAI_REQUEST_REJECTED: OpenAI refused the request itself (4xx, not 429); a retry can't succeed.
+export type ExtractionErrorCode = 'OPENAI_UNAVAILABLE' | 'OPENAI_REQUEST_REJECTED' | 'INVALID_AI_OUTPUT' | 'SYNC_BUDGET_EXCEEDED';
 
 export class ExtractionError extends Error {
   constructor(
     public code: ExtractionErrorCode,
     public attempts = 1,
     public usage?: Usage,
+    /** OpenAI's own diagnosis when it returned an error (also logged as openai_request_failed). */
+    public upstream?: OpenAIErrorFields,
   ) {
     super(code);
     this.name = 'ExtractionError';
@@ -103,8 +106,11 @@ export async function callExtractionModel(p: {
     if (sync && isRetryableOpenAIError(err) && remaining() < SYNC_MIN_FOR_RETRY_MS) {
       return new ExtractionError('SYNC_BUDGET_EXCEEDED', Math.max(1, attemptsUsed));
     }
-    if (err instanceof OpenAI.APIError) p.log.error('openai_request_failed', { status: err.status ?? null });
-    return new ExtractionError('OPENAI_UNAVAILABLE', Math.max(1, attemptsUsed));
+    const upstream = err instanceof OpenAI.APIError ? openAIErrorFields(err) : undefined;
+    if (upstream) p.log.error('openai_request_failed', { model, ...upstream });
+    const attempts = Math.max(1, attemptsUsed);
+    if (isOpenAIRequestRejection(err)) return new ExtractionError('OPENAI_REQUEST_REJECTED', attempts, undefined, upstream);
+    return new ExtractionError('OPENAI_UNAVAILABLE', attempts, undefined, upstream);
   };
 
   if (sync && remaining() - SYNC_RESERVE_MS <= 0) throw new ExtractionError('SYNC_BUDGET_EXCEEDED', 0);
@@ -135,7 +141,7 @@ export async function callExtractionModel(p: {
     repair = await request(repairMessages, 1);
   } catch (err) {
     const e = classify(err);
-    throw new ExtractionError(e.code, first.attempts, usage);
+    throw new ExtractionError(e.code, first.attempts, usage, e.upstream);
   }
   const repairUsage = toUsage(repair.result);
   const repaired = parseCompletion(repair.result);

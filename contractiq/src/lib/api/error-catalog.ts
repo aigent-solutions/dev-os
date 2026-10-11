@@ -58,6 +58,12 @@ export const ERROR_CATALOG = {
     message: 'Our AI provider is unavailable. Try again in a few minutes.',
   },
   UPSTREAM_TIMEOUT: { status: 504, retryable: true, message: 'This is taking longer than expected. Please try again.' },
+  // OpenAI refused the request itself (4xx, not 429): our configuration, not the user's input.
+  UPSTREAM_REJECTED: {
+    status: 502,
+    retryable: false,
+    message: "Something went wrong on our side, and trying again won't fix it. Please contact support.",
+  },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CATALOG;
@@ -65,6 +71,7 @@ export type ErrorCode = keyof typeof ERROR_CATALOG;
 // Contract-level error codes stored in contracts.error_code (README §4, second table).
 export const CONTRACT_ERROR_CODES = [
   'OPENAI_UNAVAILABLE',
+  'OPENAI_REQUEST_REJECTED',
   'INVALID_AI_OUTPUT',
   'PROCESSING_TIMEOUT',
   'SYNC_BUDGET_EXCEEDED',
@@ -72,3 +79,10 @@ export const CONTRACT_ERROR_CODES = [
 ] as const;
 export type ContractErrorCode = (typeof CONTRACT_ERROR_CODES)[number];
 export const CONTRACT_ERROR_MESSAGE = "We couldn't analyse your contract right now. Try again in a few minutes.";
+export const CONTRACT_REJECTED_MESSAGE = "Something went wrong on our side, and trying again won't fix it. Please contact support.";
+
+/** Contract errors a retry can't fix: the results page shows no "Try again" for these. */
+export const NON_RETRYABLE_CONTRACT_ERROR_CODES: readonly string[] = ['OPENAI_REQUEST_REJECTED'] satisfies ContractErrorCode[];
+
+export const contractErrorMessage = (code: ContractErrorCode) =>
+  NON_RETRYABLE_CONTRACT_ERROR_CODES.includes(code) ? CONTRACT_REJECTED_MESSAGE : CONTRACT_ERROR_MESSAGE;

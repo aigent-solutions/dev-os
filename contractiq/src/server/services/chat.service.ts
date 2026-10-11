@@ -183,10 +183,11 @@ export async function streamChatAnswer(args: {
       success: false,
       errorCode: code,
     });
+    if (err instanceof ChatStreamError && err.upstream) log.error('openai_request_failed', { model: serverEnv.OPENAI_CHAT_MODEL, code, ...err.upstream });
     if (deleted) log.warn('chat_contract_deleted', { attempts: stats.attempts });
     else log.warn('chat_failed', { code, partial: content.length > 0, attempts: stats.attempts, ...(code === 'INTERNAL_ERROR' ? { error: err instanceof Error ? err.message : String(err) } : {}) });
     if (code !== 'CLIENT_ABORTED') {
-      send('error', { code, message: errorMessage(code), retryable: !deleted, message_id: messageId, partial: firstTokenSent });
+      send('error', { code, message: errorMessage(code), retryable: !deleted && code !== 'UPSTREAM_REJECTED', message_id: messageId, partial: firstTokenSent });
     }
   }
 }

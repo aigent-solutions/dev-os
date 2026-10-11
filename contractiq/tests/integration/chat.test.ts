@@ -4,7 +4,7 @@ import * as chatRoute from '@/app/api/contracts/[id]/chat/route';
 import { closeDb, count, sql } from '../helpers/db';
 import { createTestUser, deleteTestUser, seedContract } from '../helpers/factories';
 import { adminClient, callRoute, signedInClient } from '../helpers/supabase';
-import { openAiError, openAiStream } from '../mocks/openai-handlers';
+import { openAiError, openAiRejection, openAiStream, UNSUPPORTED_MAX_TOKENS } from '../mocks/openai-handlers';
 import { server } from '../setup/msw';
 import type { SeededUser } from '../setup/seed-users';
 
@@ -84,6 +84,33 @@ describe('POST /chat', () => {
     expect((await messages(id)).map((m) => m.role)).toEqual(['user']);
     const [usage] = await sql<{ success: boolean; attempts: number; error_code: string }>('select success, attempts, error_code from public.ai_usage_logs where contract_id = $1', [id]);
     expect(usage).toEqual({ success: false, attempts: 3, error_code: 'UPSTREAM_UNAVAILABLE' });
+  }, 15_000);
+
+  it("upstream 400 (request rejected) → UPSTREAM_REJECTED, not retryable, after 1 request; OpenAI's diagnosis logged", async () => {
+    const { user, id } = await owner();
+    let requests = 0;
+    server.events.on('request:start', ({ request }) => void (request.url.includes('api.openai.com') && requests++));
+    server.use(openAiRejection());
+    const ev = await events(await ask(user, id));
+    server.events.removeAllListeners('request:start');
+    expect(ev.map((e) => e.event)).toEqual(['meta', 'error']);
+    expect(ev[1]!.data).toMatchObject({ code: 'UPSTREAM_REJECTED', retryable: false, message: expect.stringContaining('contact support') });
+    expect(requests).toBe(1);
+    const errors = vi.mocked(console.error).mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+    expect(errors.find((l) => l.msg === 'openai_request_failed')).toMatchObject({
+      code: 'UPSTREAM_REJECTED',
+      status: 400,
+      openai_code: UNSUPPORTED_MAX_TOKENS.code,
+      openai_param: UNSUPPORTED_MAX_TOKENS.param,
+      openai_message: UNSUPPORTED_MAX_TOKENS.message,
+    });
+  });
+
+  it('upstream 503 errors stay retryable for the user', async () => {
+    const { user, id } = await owner();
+    server.use(openAiError(503));
+    const ev = await events(await ask(user, id));
+    expect(ev[1]!.data).toMatchObject({ code: 'UPSTREAM_UNAVAILABLE', retryable: true });
   }, 15_000);
 
   // A real socket reset through a local server: MSW's interception of the SDK's node-fetch never surfaces a

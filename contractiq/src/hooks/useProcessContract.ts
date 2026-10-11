@@ -15,7 +15,7 @@ export type ProcessResponse =
       contract_id: string;
       status: 'completed' | 'error';
       mode: 'sync';
-      error: { code: string; message: string; retryable: true } | null;
+      error: { code: string; message: string; retryable: boolean } | null;
     };
 
 export function useProcessContract(contractId: string | null, opts: { from: 'wizard' | 'results' } = { from: 'wizard' }) {

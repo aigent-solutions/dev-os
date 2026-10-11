@@ -76,6 +76,40 @@ export function isRetryableOpenAIError(err: unknown): boolean {
   );
 }
 
+/**
+ * OpenAI rejected the request itself: a 4xx other than 429 (unsupported parameter, unknown model, bad key,
+ * …). Retrying sends the same request and gets the same answer, so callers report it as non-retryable.
+ */
+export function isOpenAIRequestRejection(err: unknown): err is InstanceType<typeof OpenAI.APIError> {
+  if (!(err instanceof OpenAI.APIError) || isRetryableOpenAIError(err)) return false;
+  const status = err.status ?? 0;
+  return status >= 400 && status < 500;
+}
+
+export type OpenAIErrorFields = {
+  status: number | null;
+  openai_type: string | null;
+  openai_code: string | null;
+  openai_param: string | null;
+  openai_message: string | null;
+};
+
+/**
+ * OpenAI's own diagnosis for `openai_request_failed` logs, e.g. code=unsupported_parameter
+ * param=max_tokens. These describe the request, never echo prompt or contract content; the message is
+ * capped anyway.
+ */
+export function openAIErrorFields(err: InstanceType<typeof OpenAI.APIError>): OpenAIErrorFields {
+  const message = (err.error as { message?: unknown } | undefined)?.message;
+  return {
+    status: err.status ?? null,
+    openai_type: err.type ?? null,
+    openai_code: err.code ?? null,
+    openai_param: err.param ?? null,
+    openai_message: (typeof message === 'string' ? message : err.message).slice(0, 500),
+  };
+}
+
 /** Background-mode preset. The sync preset is built per request (05-key-term-extraction.md). */
 export const BACKGROUND_RETRY = {
   attempts: 3,

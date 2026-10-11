@@ -42,6 +42,17 @@ export function openAiStream(deltas: string[], usage = { prompt_tokens: 1000, co
 }
 
 /** An OpenAI API error response (e.g. 429 or 503) to exercise retries. */
+/** OpenAI refusing the request itself, in its real error shape (what gpt-6-luna returned for max_tokens). */
+export const UNSUPPORTED_MAX_TOKENS = {
+  message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+  type: 'invalid_request_error',
+  param: 'max_tokens',
+  code: 'unsupported_parameter',
+};
+export function openAiRejection(status = 400, error: Record<string, unknown> = UNSUPPORTED_MAX_TOKENS) {
+  return http.post(COMPLETIONS, () => HttpResponse.json({ error }, { status }));
+}
+
 export function openAiError(status: number, headers: Record<string, string> = {}) {
   return http.post(COMPLETIONS, () =>
     HttpResponse.json({ error: { message: `mock ${status}`, type: 'server_error' } }, { status, headers }),

@@ -71,11 +71,36 @@ describe('callExtractionModel (background)', () => {
     expect(calls.n).toBe(3);
   }, 15_000);
 
-  it('401 → no retry', async () => {
-    const calls = sequence(status(401));
-    expect((await codeOf(call())).code).toBe('OPENAI_UNAVAILABLE');
+  it.each([401, 403, 404])('%i → OPENAI_REQUEST_REJECTED, no retry', async (code) => {
+    const calls = sequence(status(code));
+    expect((await codeOf(call())).code).toBe('OPENAI_REQUEST_REJECTED');
     expect(calls.n).toBe(1);
   });
+
+  it("400 unsupported_parameter → OPENAI_REQUEST_REJECTED after 1 request; openai_request_failed carries OpenAI's diagnosis", async () => {
+    const message = "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.";
+    const calls = sequence(() =>
+      HttpResponse.json({ error: { message, type: 'invalid_request_error', param: 'max_tokens', code: 'unsupported_parameter' } }, { status: 400 }),
+    );
+    expect((await codeOf(call())).code).toBe('OPENAI_REQUEST_REJECTED');
+    expect(calls.n).toBe(1);
+    const lines = vi.mocked(console.error).mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+    expect(lines.find((l) => l.msg === 'openai_request_failed')).toMatchObject({
+      level: 'error',
+      model: 'gpt-4o',
+      status: 400,
+      openai_type: 'invalid_request_error',
+      openai_code: 'unsupported_parameter',
+      openai_param: 'max_tokens',
+      openai_message: message,
+    });
+  });
+
+  it('429 is still retryable: 3 × 429 → OPENAI_UNAVAILABLE', async () => {
+    const calls = sequence(status(429));
+    expect((await codeOf(call())).code).toBe('OPENAI_UNAVAILABLE');
+    expect(calls.n).toBe(3);
+  }, 15_000);
 
   it('invalid JSON, then valid on the repair → repairUsage set', async () => {
     const calls = sequence(ok('{"terms": [oops'), ok());

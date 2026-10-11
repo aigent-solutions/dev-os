@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isRetryableOpenAIError, withRetry, type RetryOptions } from '@/lib/retry';
+import { isOpenAIRequestRejection, isRetryableOpenAIError, openAIErrorFields, withRetry, type RetryOptions } from '@/lib/retry';
 
 // 00-foundation.md §12.2.
 afterEach(() => vi.useRealTimers());
@@ -100,5 +100,40 @@ describe('isRetryableOpenAIError', () => {
     expect(isRetryableOpenAIError(new OpenAI.APIConnectionError({ message: 'x' }))).toBe(true);
     expect(isRetryableOpenAIError({ code: 'ECONNRESET' })).toBe(true);
     expect(isRetryableOpenAIError(new DOMException('t', 'TimeoutError'))).toBe(true);
+  });
+});
+
+describe('isOpenAIRequestRejection', () => {
+  it.each([400, 401, 403, 404, 422])('%i → a rejection (retrying sends the same bad request)', (s) => expect(isOpenAIRequestRejection(apiError(s))).toBe(true));
+  it.each([429, 500, 502, 503, 504])('%i → not a rejection (retryable)', (s) => expect(isOpenAIRequestRejection(apiError(s))).toBe(false));
+  it('connection errors, aborts and non-OpenAI errors are not rejections', () => {
+    expect(isOpenAIRequestRejection(new OpenAI.APIConnectionError({ message: 'x' }))).toBe(false);
+    expect(isOpenAIRequestRejection(new OpenAI.APIUserAbortError())).toBe(false);
+    expect(isOpenAIRequestRejection(new Error('x'))).toBe(false);
+  });
+});
+
+describe('openAIErrorFields', () => {
+  it("carries OpenAI's type, code, param and raw message (the gpt-6-luna incident)", () => {
+    const body = {
+      error: {
+        message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+        type: 'invalid_request_error',
+        param: 'max_tokens',
+        code: 'unsupported_parameter',
+      },
+    };
+    expect(openAIErrorFields(OpenAI.APIError.generate(400, body, undefined, {}))).toEqual({
+      status: 400,
+      openai_type: 'invalid_request_error',
+      openai_code: 'unsupported_parameter',
+      openai_param: 'max_tokens',
+      openai_message: body.error.message,
+    });
+  });
+  it('missing fields are null; the message is capped at 500 characters', () => {
+    const f = openAIErrorFields(OpenAI.APIError.generate(404, { error: { message: 'm'.repeat(2000) } }, undefined, {}));
+    expect(f).toMatchObject({ status: 404, openai_type: null, openai_code: null, openai_param: null });
+    expect(f.openai_message).toHaveLength(500);
   });
 });

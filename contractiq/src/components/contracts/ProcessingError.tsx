@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { useProcessContract } from '@/hooks/useProcessContract';
+import { NON_RETRYABLE_CONTRACT_ERROR_CODES } from '@/lib/api/error-catalog';
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/constants';
 
 export type ProcessingErrorProps = {
@@ -24,7 +25,9 @@ function RetryButton({ contractId, customTerms }: { contractId: string; customTe
 }
 
 export function ProcessingError({ contractId, error, attempts, customTerms }: ProcessingErrorProps) {
-  const canRetry = attempts < MAX_PROCESSING_ATTEMPTS;
+  // A rejected request (e.g. a misconfigured model) fails identically on every retry: no button, contact support.
+  const rejected = NON_RETRYABLE_CONTRACT_ERROR_CODES.includes(error.code);
+  const canRetry = !rejected && attempts < MAX_PROCESSING_ATTEMPTS;
   return (
     <section
       role="alert"
@@ -35,10 +38,10 @@ export function ProcessingError({ contractId, error, attempts, customTerms }: Pr
         <AlertTriangle aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-danger-fg" />
         <div className="flex flex-col gap-0.5">
           <h2 className="text-body-lg text-fg-primary">We couldn&apos;t finish analysing this contract</h2>
-          <p className="text-body-sm text-fg-secondary">{canRetry ? error.message : 'This contract has failed too many times.'}</p>
+          <p className="text-body-sm text-fg-secondary">{canRetry || rejected ? error.message : 'This contract has failed too many times.'}</p>
         </div>
       </div>
-      {canRetry ? (
+      {rejected ? null : canRetry ? (
         <div className="flex flex-wrap items-center gap-3">
           <RetryButton contractId={contractId} customTerms={customTerms} />
           <p className="text-body-sm text-fg-secondary">You won&apos;t need to upload the file again.</p>

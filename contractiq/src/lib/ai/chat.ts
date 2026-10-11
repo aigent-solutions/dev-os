@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import type { ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { CHAT_STREAM_TIMEOUT_MS, OPENAI_TIMEOUT_MS } from '@/lib/constants';
 import { serverEnv } from '@/lib/env';
-import { isRetryableOpenAIError, withRetry } from '@/lib/retry';
+import { isOpenAIRequestRejection, isRetryableOpenAIError, openAIErrorFields, withRetry, type OpenAIErrorFields } from '@/lib/retry';
 import type { ChatQueryType, ChatRole, ContractType } from '@/types/domain';
 import { getOpenAI, hashUserId } from './openai-client';
 import { getChatPrompt } from './prompts';
@@ -55,12 +55,15 @@ export function buildChatMessages(p: {
 
 export type ChatChunk = { type: 'delta'; text: string } | { type: 'usage'; usage: { promptTokens: number; completionTokens: number } };
 // NOT_FOUND: the contract was deleted while the answer streamed (13 §10); set by chat.service, never by the stream.
-export type ChatErrorCode = 'CLIENT_ABORTED' | 'UPSTREAM_TIMEOUT' | 'UPSTREAM_UNAVAILABLE' | 'INTERNAL_ERROR' | 'NOT_FOUND';
+// UPSTREAM_REJECTED: OpenAI refused the request itself (4xx, not 429); a retry can't succeed.
+export type ChatErrorCode = 'CLIENT_ABORTED' | 'UPSTREAM_TIMEOUT' | 'UPSTREAM_UNAVAILABLE' | 'UPSTREAM_REJECTED' | 'INTERNAL_ERROR' | 'NOT_FOUND';
 
 export class ChatStreamError extends Error {
   constructor(
     public code: ChatErrorCode,
     public attempts: number,
+    /** OpenAI's own diagnosis when it returned an error; chat.service logs it as openai_request_failed. */
+    public upstream?: OpenAIErrorFields,
   ) {
     super(code);
     this.name = 'ChatStreamError';
@@ -100,7 +103,9 @@ export async function* streamChatCompletion(p: {
     if (total.aborted || name === 'TimeoutError' || err instanceof OpenAI.APIConnectionTimeoutError) {
       return new ChatStreamError('UPSTREAM_TIMEOUT', stats.attempts);
     }
-    if (isRetryableOpenAIError(err) || err instanceof OpenAI.APIError) return new ChatStreamError('UPSTREAM_UNAVAILABLE', stats.attempts);
+    if (isOpenAIRequestRejection(err)) return new ChatStreamError('UPSTREAM_REJECTED', stats.attempts, openAIErrorFields(err));
+    if (err instanceof OpenAI.APIError) return new ChatStreamError('UPSTREAM_UNAVAILABLE', stats.attempts, openAIErrorFields(err));
+    if (isRetryableOpenAIError(err)) return new ChatStreamError('UPSTREAM_UNAVAILABLE', stats.attempts);
     return new ChatStreamError('INTERNAL_ERROR', stats.attempts);
   };
 

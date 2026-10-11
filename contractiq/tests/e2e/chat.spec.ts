@@ -31,3 +31,16 @@ test('an off-document question → "I cannot find this in the document."', async
   await expect(log.getByText('I cannot find this in the document.')).toBeVisible({ timeout: 20_000 });
   await expect(log.getByRole('button', { name: /Go to page/ })).toHaveCount(0);
 });
+
+test('OpenAI rejects the chat request (400) → contact-support message and no Retry', async ({ page, user }) => {
+  const id = await seedCompletedContract(page, user);
+  const question = `Who are the parties? (${uniqueToken()})`;
+  await mockOverride(page, { match: question, kind: 'chat', status: 400, times: 1 });
+  await page.goto(`/contracts/${id}`);
+  await page.getByRole('tab', { name: 'Chat' }).click();
+  await page.getByRole('textbox', { name: 'Ask a question about this contract' }).fill(question);
+  await page.getByRole('textbox', { name: 'Ask a question about this contract' }).press('Enter');
+  const log = page.getByRole('log', { name: 'Conversation' });
+  await expect(log.getByText("Something went wrong on our side, and trying again won't fix it. Please contact support.")).toBeVisible({ timeout: 20_000 });
+  await expect(log.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+});

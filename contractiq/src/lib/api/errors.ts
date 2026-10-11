@@ -65,7 +65,7 @@ export function appError(code: ErrorCode, details?: ErrorDetails): AppError {
     case 429:
       return new RateLimitError(Number(details?.retry_after ?? 60), details);
     case 502:
-      return new UpstreamError(code, 502, msg, true, details);
+      return new UpstreamError(code, 502, msg, entry.retryable, details);
     case 504:
       return new TimeoutError(code, 504, msg, true, details);
     default:

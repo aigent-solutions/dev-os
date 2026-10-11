@@ -5,7 +5,8 @@ import { TERM_LIBRARY } from '@/lib/ai/term-library';
 import { closeDb, count, sql } from '../helpers/db';
 import { CONTRACT_TEXT, createTestUser, deleteTestUser, seedContract } from '../helpers/factories';
 import { adminClient, callRoute, signedInClient } from '../helpers/supabase';
-import { openAiError } from '../mocks/openai-handlers';
+import { openAiError, openAiRejection, UNSUPPORTED_MAX_TOKENS } from '../mocks/openai-handlers';
+import { CONTRACT_REJECTED_MESSAGE } from '@/lib/api/error-catalog';
 import { server } from '../setup/msw';
 import type { SeededUser } from '../setup/seed-users';
 
@@ -154,6 +155,27 @@ describe('background mode', () => {
     expect(await row(id)).toMatchObject({ status: 'completed', processing_attempts: 2 });
   }, 30_000);
 
+  it("OpenAI 400 (request rejected) → OPENAI_REQUEST_REJECTED after 1 request, contact-support message, OpenAI's diagnosis logged", async () => {
+    const { process, runBackground } = await app();
+    const { user, id } = await readyContract();
+    const d = dispatch(() => new HttpResponse(null, { status: 202 }));
+    server.use(openAiRejection());
+    await process(user, id);
+    await runBackground(d.bodies[0]);
+    expect(await row(id)).toMatchObject({ status: 'error', error_code: 'OPENAI_REQUEST_REJECTED', processing_attempts: 1 });
+    const [msg] = await sql<{ error_message: string }>('select error_message from public.contracts where id = $1', [id]);
+    expect(msg!.error_message).toBe(CONTRACT_REJECTED_MESSAGE);
+    expect(await usageRows(id)).toEqual([expect.objectContaining({ operation: 'extraction', success: false, error_code: 'OPENAI_REQUEST_REJECTED', attempts: 1 })]);
+    const errors = vi.mocked(console.error).mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+    expect(errors.find((l) => l.msg === 'openai_request_failed')).toMatchObject({
+      contract_id: id,
+      status: 400,
+      openai_code: UNSUPPORTED_MAX_TOKENS.code,
+      openai_param: UNSUPPORTED_MAX_TOKENS.param,
+      openai_message: UNSUPPORTED_MAX_TOKENS.message,
+    });
+  }, 30_000);
+
   it('invalid JSON twice → INVALID_AI_OUTPUT', async () => {
     const { process, runBackground } = await app();
     const { user, id } = await readyContract();
@@ -225,6 +247,19 @@ describe('guards', () => {
 });
 
 describe('sync mode and fallback', () => {
+  it('PROCESSING_MODE=sync + OpenAI 400 → error OPENAI_REQUEST_REJECTED with retryable: false', async () => {
+    const { process } = await app({ PROCESSING_MODE: 'sync' });
+    const { user, id } = await readyContract();
+    server.use(openAiRejection());
+    const res = await process(user, id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: 'error',
+      mode: 'sync',
+      error: { code: 'OPENAI_REQUEST_REJECTED', message: CONTRACT_REJECTED_MESSAGE, retryable: false },
+    });
+  });
+
   it('PROCESSING_MODE=sync → 200 completed, and dispatch is never called', async () => {
     const { process } = await app({ PROCESSING_MODE: 'sync' });
     const { user, id } = await readyContract();

@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ProcessingError } from '@/components/contracts/ProcessingError';
+import { CONTRACT_REJECTED_MESSAGE } from '@/lib/api/error-catalog';
 import { renderWithClient } from '../../../helpers/render';
 
 // 05-key-term-extraction.md §12.
@@ -21,5 +22,15 @@ describe('ProcessingError', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Upload again' })).toHaveAttribute('href', '/contracts/new');
     expect(screen.getByText('This contract has failed too many times.')).toBeInTheDocument();
+  });
+
+  it.each([1, 5])('OPENAI_REQUEST_REJECTED (attempts %i): the contact-support message, no Try again, no Upload again', (attempts) => {
+    renderWithClient(
+      <ProcessingError contractId="c" error={{ code: 'OPENAI_REQUEST_REJECTED', message: CONTRACT_REJECTED_MESSAGE }} attempts={attempts} customTerms={[]} />,
+    );
+    expect(screen.getByRole('alert')).toHaveAttribute('data-error-code', 'OPENAI_REQUEST_REJECTED');
+    expect(screen.getByText(CONTRACT_REJECTED_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Upload again' })).toBeNull();
   });
 });

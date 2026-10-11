@@ -24,6 +24,7 @@
     "eval:extraction": "NODE_OPTIONS=--conditions=react-server tsx evals/run-extraction-eval.ts",
     "eval:calibration": "NODE_OPTIONS=--conditions=react-server tsx evals/run-calibration-eval.ts",
     "eval:chat": "NODE_OPTIONS=--conditions=react-server tsx evals/run-chat-groundedness.ts",
+    "smoke:openai": "NODE_OPTIONS=--conditions=react-server tsx evals/smoke-openai.ts --live",
     "postinstall": "node scripts/copy-pdf-worker.mjs",
     "prebuild": "node scripts/copy-pdf-worker.mjs"
   },

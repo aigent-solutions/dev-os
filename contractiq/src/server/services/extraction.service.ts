@@ -6,7 +6,7 @@ import { postProcessTerms } from '@/lib/ai/post-process-terms';
 import { getExtractionPrompt } from '@/lib/ai/prompts';
 import { buildRequestedTerms } from '@/lib/ai/term-library';
 import { logAiUsage } from '@/lib/ai/usage-log';
-import { CONTRACT_ERROR_MESSAGE, type ContractErrorCode } from '@/lib/api/error-catalog';
+import { CONTRACT_ERROR_MESSAGE, contractErrorMessage, NON_RETRYABLE_CONTRACT_ERROR_CODES, type ContractErrorCode } from '@/lib/api/error-catalog';
 import { appError } from '@/lib/api/errors';
 import { internalAuthHeaders } from '@/lib/api/internal-auth';
 import { DISPATCH_TIMEOUT_MS, MAX_PROCESSING_ATTEMPTS } from '@/lib/constants';
@@ -33,7 +33,7 @@ export type ProcessResult =
         contract_id: string;
         status: 'completed' | 'error';
         mode: 'sync';
-        error: { code: string; message: string; retryable: true } | null;
+        error: { code: string; message: string; retryable: boolean } | null;
       };
     };
 
@@ -167,7 +167,7 @@ export async function startProcessing(args: {
         contract_id: contractId,
         status: r.status,
         mode: 'sync',
-        error: r.status === 'error' ? { code: r.error.code, message: r.error.message, retryable: true } : null,
+        error: r.status === 'error' ? { code: r.error.code, message: r.error.message, retryable: !NON_RETRYABLE_CONTRACT_ERROR_CODES.includes(r.error.code) } : null,
       },
     };
   };
@@ -355,7 +355,7 @@ export async function runExtraction(
     const code: ContractErrorCode = err instanceof ExtractionError ? err.code : 'INTERNAL_ERROR';
     await admin
       .from('contracts')
-      .update({ status: 'error', processing_stage: null, error_code: code, error_message: CONTRACT_ERROR_MESSAGE })
+      .update({ status: 'error', processing_stage: null, error_code: code, error_message: contractErrorMessage(code) })
       .eq('id', contractId)
       .eq('user_id', userId)
       .eq('status', 'processing');
@@ -380,6 +380,6 @@ export async function runExtraction(
       code,
       ...(err instanceof ExtractionError ? {} : { error: err instanceof Error ? err.message : String(err) }),
     });
-    return { status: 'error', error: { code, message: CONTRACT_ERROR_MESSAGE } };
+    return { status: 'error', error: { code, message: contractErrorMessage(code) } };
   }
 }
